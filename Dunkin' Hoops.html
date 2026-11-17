@@ -284,9 +284,23 @@ canvas#court{position:absolute;inset:0;width:100%;height:100%;display:block}
       <h1>DUNKIN'<br><span>HOOPS</span></h1>
       <p>Four quarters. A shot clock. Bring the arena to life.</p>
       <button class="big" id="btnPlay">▶ PLAY</button>
+      <div id="homeTourActions" hidden>
+        <button class="big" id="btnResumeTour">▶ RESUME TOURNAMENT</button>
+        <button class="ghost" id="btnCancelTour">CANCEL TOURNAMENT</button>
+      </div>
       <button class="ghost" id="btnInstall" hidden>⬇ INSTALL APP</button>
     </div>
     <div class="home-foot">© 2026 POWERPLAY Studios</div>
+  </div>
+
+  <div class="modal" id="cancelTourMenu">
+    <div class="panel">
+      <div class="sub">TOURNAMENT IN PROGRESS</div>
+      <h2>CANCEL TOURNAMENT?</h2>
+      <p>Your group results, bracket and placements will be deleted. This cannot be undone.</p>
+      <button class="big" id="btnCancelTourNo">KEEP TOURNAMENT</button>
+      <button class="ghost" id="btnCancelTourYes">YES, CANCEL TOURNAMENT</button>
+    </div>
   </div>
 
   <div class="modal" id="modeMenu">
@@ -737,6 +751,7 @@ function quitToHome() {
   crowd(false);
   closeMenus();
   showMenu('homeMenu');
+  syncHomeTournament();
   updateModeNote();
   say('');
   syncUI();
@@ -2023,9 +2038,23 @@ function continueTournament() {
   saveT();
   openTournamentHub();
 }
+function syncHomeTournament() {
+  const active = !!(T && !T.done);
+  $('homeTourActions').hidden = !active;
+  $('btnResumeTour').hidden = !active;
+  $('btnCancelTour').hidden = !active;
+}
+function cancelTournament() {
+  T = null;
+  try { localStorage.removeItem(TOUR_KEY); } catch (e) {}
+  syncHomeTournament();
+  updateModeNote();
+  showMenu('homeMenu');
+}
 function resetTournament() {
   T = null;
   try { localStorage.removeItem(TOUR_KEY); } catch (e) {}
+  syncHomeTournament();
   openTournamentSetup();
 }
 function updateModeNote() {
@@ -2069,6 +2098,10 @@ function readTeams() {
   return true;
 }
 $('btnPlay').onclick = () => { ac(); sfx('ui'); updateModeNote(); showMenu('modeMenu'); };
+$('btnResumeTour').onclick = () => { ac(); sfx('ui'); continueTournament(); };
+$('btnCancelTour').onclick = () => { sfx('ui'); showMenu('cancelTourMenu'); };
+$('btnCancelTourNo').onclick = () => { sfx('ui'); showMenu('homeMenu'); };
+$('btnCancelTourYes').onclick = () => { sfx('ui'); cancelTournament(); };
 $('btnFriendly').onclick = () => { ac(); sfx('ui'); S.mode = 'friendly'; showMenu('teamMenu'); };
 $('btnModeBack').onclick = () => { sfx('ui'); showMenu('homeMenu'); };
 $('btnTournament').onclick = () => {
@@ -2170,6 +2203,7 @@ loadPrefs();
 fillSelects();
 fillTourSelect();
 loadT();
+syncHomeTournament();
 updateModeNote();
 updateColors();
 syncDiffButtons();
