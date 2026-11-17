@@ -1647,6 +1647,37 @@ function loadT() {
   } catch (e) { T = null; }
 }
 
+const PREF_KEY = 'dh_prefs_v1';
+function savePrefs() {
+  try {
+    const prev = JSON.parse(localStorage.getItem(PREF_KEY) || 'null') || {};
+    const p = {
+      diff: DIFF[S.diff] ? S.diff : 'pro',
+      homeTeam: S.mode === 'tour'
+        ? (TEAMS[prev.homeTeam] ? prev.homeTeam : 'Predators')
+        : (TEAMS[S.homeTeam] ? S.homeTeam : 'Predators'),
+      awayTeam: S.mode === 'tour'
+        ? (TEAMS[prev.awayTeam] ? prev.awayTeam : 'Sixers')
+        : (TEAMS[S.awayTeam] ? S.awayTeam : 'Sixers')
+    };
+    localStorage.setItem(PREF_KEY, JSON.stringify(p));
+  } catch (e) {}
+}
+function loadPrefs() {
+  try {
+    const p = JSON.parse(localStorage.getItem(PREF_KEY) || 'null');
+    if (!p) return;
+    if (TEAMS[p.homeTeam]) S.homeTeam = p.homeTeam;
+    if (TEAMS[p.awayTeam]) S.awayTeam = p.awayTeam;
+    if (DIFF[p.diff]) S.diff = p.diff;
+  } catch (e) {}
+}
+function saveAll() {
+  saveT();
+  savePrefs();
+  try { localStorage.setItem('dh_muted', muted ? '1' : '0'); } catch (e) {}
+}
+
 function roundRobin(teams) {
   const order = teams.slice(), n = order.length, rounds = [];
   for (let r = 0; r < n - 1; r++) {
@@ -1996,9 +2027,13 @@ function fillTourSelect() {
 function fillSelects() {
   const h = $('homeSelect'), a = $('awaySelect');
   Object.keys(TEAMS).forEach(n => { h.add(new Option(n, n)); a.add(new Option(n, n)); });
-  h.value = 'Predators';
-  a.value = 'Sixers';
-  h.onchange = a.onchange = () => { updateColors(); };
+  h.value = TEAMS[S.homeTeam] ? S.homeTeam : 'Predators';
+  a.value = TEAMS[S.awayTeam] && S.awayTeam !== h.value ? S.awayTeam : 'Sixers';
+  if (a.value === h.value) a.value = Object.keys(TEAMS).find(n => n !== h.value);
+  h.onchange = a.onchange = () => { updateColors(); savePrefs(); };
+}
+function syncDiffButtons() {
+  document.querySelectorAll('.diffs button').forEach(x => x.classList.toggle('on', x.dataset.diff === S.diff));
 }
 function readTeams() {
   S.homeTeam = $('homeSelect').value;
@@ -2029,6 +2064,7 @@ document.querySelectorAll('.diffs button').forEach(b => {
     document.querySelectorAll('.diffs button').forEach(x => x.classList.toggle('on', x.dataset.diff === b.dataset.diff));
     S.diff = b.dataset.diff;
     if (T && !T.active) { T.diff = b.dataset.diff; saveT(); }
+    savePrefs();
     sfx('ui');
   };
 });
@@ -2107,14 +2143,19 @@ if (location.search.includes('debug')) {
     simulateToEnd, ensureStages
   };
 }
+loadPrefs();
 fillSelects();
 fillTourSelect();
 loadT();
 updateModeNote();
 updateColors();
-S.diff = 'pro';
+syncDiffButtons();
 syncUI();
 resize();
+window.addEventListener('pagehide', saveAll);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') saveAll();
+});
 requestAnimationFrame(frame);
 
 })();
