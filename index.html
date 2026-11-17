@@ -1035,15 +1035,20 @@ window.addEventListener('keyup', e => {
   keys[k] = false;
   if (k === ' ') { e.preventDefault(); releaseCharge(); }
 });
+const stick = $('stick'), knob = $('knob');
+let stickPointer = null, shootPointer = null;
+
 window.addEventListener('blur', () => {
   MOVE_KEYS.forEach(k => { keys[k] = false; });
   keys.shift = false;
   joy = { x: 0, y: 0 };
+  stickPointer = null;
+  shootPointer = null;
+  stick.classList.remove('active');
+  knob.style.transform = 'translate(-50%,-50%)';
   cancelCharge();
 });
 
-const stick = $('stick'), knob = $('knob');
-let stickPointer = null;
 function setStick(e) {
   const r = stick.getBoundingClientRect();
   joy.x = clamp((e.clientX - r.left - r.width / 2) / (r.width * 0.34), -1, 1);
@@ -1051,35 +1056,53 @@ function setStick(e) {
   knob.style.transform = 'translate(calc(-50% + ' + (joy.x * 28) + 'px),calc(-50% + ' + (joy.y * 28) + 'px))';
 }
 stick.addEventListener('pointerdown', e => {
+  if (stickPointer !== null) return;
   stickPointer = e.pointerId;
-  stick.setPointerCapture(e.pointerId);
   stick.classList.add('active');
   setStick(e);
+  e.preventDefault();
 });
-stick.addEventListener('pointermove', e => { if (e.pointerId === stickPointer) setStick(e); });
+/* Track the stick pointer on the whole window so a second finger on a button
+   cannot interrupt the drag or steal the joystick's pointer. */
+window.addEventListener('pointermove', e => { if (e.pointerId === stickPointer) setStick(e); });
 function endStick(e) {
-  if (stickPointer !== null && e.pointerId !== stickPointer) return;
+  if (stickPointer === null || e.pointerId !== stickPointer) return;
   stickPointer = null;
   stick.classList.remove('active');
   joy = { x: 0, y: 0 };
   knob.style.transform = 'translate(-50%,-50%)';
 }
-stick.addEventListener('pointerup', endStick);
-stick.addEventListener('pointercancel', endStick);
-stick.addEventListener('lostpointercapture', endStick);
+window.addEventListener('pointerup', endStick);
+window.addEventListener('pointercancel', endStick);
 
 /* buttons */
-$('btnShoot').addEventListener('pointerdown', e => { e.preventDefault(); beginCharge(); });
-$('btnShoot').addEventListener('pointerup', e => { e.preventDefault(); releaseCharge(); });
-$('btnShoot').addEventListener('pointercancel', () => cancelCharge());
-$('btnShoot').addEventListener('pointerleave', e => { if (e.buttons) releaseCharge(); });
-$('btnDunk').onclick = () => { shoot(true, 1, 'dunk'); };
-$('btnPass').onclick = passBall;
-$('btnSteal').onclick = attemptSteal;
-$('btnBlock').onclick = attemptBlock;
-$('btnSwitch').onclick = switchPlayer;
-$('pauseBtn').onclick = togglePause;
-$('endBtn').onclick = quitToHome;
+function bindTap(id, fn) {
+  const el = $(id);
+  el.addEventListener('pointerdown', e => { e.preventDefault(); fn(); });
+  el.addEventListener('click', e => { if (e.detail === 0) fn(); });
+}
+$('btnShoot').addEventListener('pointerdown', e => {
+  e.preventDefault();
+  if (shootPointer !== null) return;
+  shootPointer = e.pointerId;
+  beginCharge();
+});
+function endShoot(e) {
+  if (shootPointer === null || e.pointerId !== shootPointer) return;
+  shootPointer = null;
+  releaseCharge();
+}
+window.addEventListener('pointerup', endShoot);
+window.addEventListener('pointercancel', e => {
+  if (e.pointerId === shootPointer) { shootPointer = null; cancelCharge(); }
+});
+bindTap('btnDunk', () => shoot(true, 1, 'dunk'));
+bindTap('btnPass', passBall);
+bindTap('btnSteal', attemptSteal);
+bindTap('btnBlock', attemptBlock);
+bindTap('btnSwitch', switchPlayer);
+bindTap('pauseBtn', togglePause);
+bindTap('endBtn', quitToHome);
 
 /* ------------------------------------------------------------------- update */
 function moveToward(p, tx, ty, speed, dt, stop) {
