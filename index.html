@@ -83,6 +83,7 @@ canvas#court{position:absolute;inset:0;width:100%;height:100%;display:block}
 .actions button:active{transform:translateY(1px);box-shadow:0 2px 0 #0a111d}
 .actions .primary{background:linear-gradient(180deg,#ff9d45,#d95b19);color:#160d07;border-color:#ffd19d;box-shadow:0 3px 0 #7a3610}
 .actions button:disabled{opacity:.4}
+.actions button,.stick{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:none}
 
 /* ---- modals ---- */
 .modal{position:fixed;inset:0;z-index:20;display:none;align-items:center;justify-content:center;
@@ -1052,6 +1053,12 @@ window.addEventListener('keyup', e => {
 });
 const stick = $('stick'), knob = $('knob');
 let stickPointer = null, shootPointer = null;
+let stickTouch = null, shootTouch = null;
+const HAS_TOUCH_EVENTS = 'ontouchstart' in window;
+function touchById(list, id) {
+  for (let i = 0; i < list.length; i++) if (list[i].identifier === id) return list[i];
+  return null;
+}
 
 window.addEventListener('blur', () => {
   MOVE_KEYS.forEach(k => { keys[k] = false; });
@@ -1059,44 +1066,91 @@ window.addEventListener('blur', () => {
   joy = { x: 0, y: 0 };
   stickPointer = null;
   shootPointer = null;
+  stickTouch = null;
+  shootTouch = null;
   stick.classList.remove('active');
   knob.style.transform = 'translate(-50%,-50%)';
   cancelCharge();
 });
 
-function setStick(e) {
+function setStickAt(x, y) {
   const r = stick.getBoundingClientRect();
-  joy.x = clamp((e.clientX - r.left - r.width / 2) / (r.width * 0.34), -1, 1);
-  joy.y = clamp((e.clientY - r.top - r.height / 2) / (r.height * 0.34), -1, 1);
+  joy.x = clamp((x - r.left - r.width / 2) / (r.width * 0.34), -1, 1);
+  joy.y = clamp((y - r.top - r.height / 2) / (r.height * 0.34), -1, 1);
   knob.style.transform = 'translate(calc(-50% + ' + (joy.x * 28) + 'px),calc(-50% + ' + (joy.y * 28) + 'px))';
 }
+function setStick(e) { setStickAt(e.clientX, e.clientY); }
+function centerStick() {
+  stick.classList.remove('active');
+  joy = { x: 0, y: 0 };
+  knob.style.transform = 'translate(-50%,-50%)';
+}
+
+/* Touch Events are the reliable multi-touch path on iOS/iPadOS Safari.
+   Pointer Events stay for mouse and pen; touch pointers are ignored there so
+   a second finger on a button can never cancel or reset the joystick drag. */
 stick.addEventListener('pointerdown', e => {
+  if (e.pointerType === 'touch' && HAS_TOUCH_EVENTS) return;
   if (stickPointer !== null) return;
   stickPointer = e.pointerId;
   stick.classList.add('active');
   setStick(e);
   e.preventDefault();
 });
-/* Track the stick pointer on the whole window so a second finger on a button
-   cannot interrupt the drag or steal the joystick's pointer. */
 window.addEventListener('pointermove', e => { if (e.pointerId === stickPointer) setStick(e); });
 function endStick(e) {
   if (stickPointer === null || e.pointerId !== stickPointer) return;
   stickPointer = null;
-  stick.classList.remove('active');
-  joy = { x: 0, y: 0 };
-  knob.style.transform = 'translate(-50%,-50%)';
+  centerStick();
 }
 window.addEventListener('pointerup', endStick);
 window.addEventListener('pointercancel', endStick);
 
+stick.addEventListener('touchstart', e => {
+  e.preventDefault();
+  if (stickTouch !== null) return;
+  const t = e.changedTouches[0];
+  if (!t) return;
+  stickTouch = t.identifier;
+  stick.classList.add('active');
+  setStickAt(t.clientX, t.clientY);
+}, { passive: false });
+window.addEventListener('touchmove', e => {
+  if (stickTouch === null && shootTouch === null) return;
+  e.preventDefault();
+  if (stickTouch === null) return;
+  const t = touchById(e.touches, stickTouch);
+  if (!t) return;
+  setStickAt(t.clientX, t.clientY);
+}, { passive: false });
+function endStickTouch(e) {
+  if (stickTouch === null || !touchById(e.changedTouches, stickTouch)) return;
+  stickTouch = null;
+  centerStick();
+}
+window.addEventListener('touchend', endStickTouch);
+window.addEventListener('touchcancel', endStickTouch);
+
 /* buttons */
 function bindTap(id, fn) {
   const el = $(id);
-  el.addEventListener('pointerdown', e => { e.preventDefault(); fn(); });
+  el.addEventListener('touchstart', e => { e.preventDefault(); fn(); }, { passive: false });
+  el.addEventListener('pointerdown', e => {
+    if (e.pointerType === 'touch' && HAS_TOUCH_EVENTS) return;
+    e.preventDefault(); fn();
+  });
   el.addEventListener('click', e => { if (e.detail === 0) fn(); });
 }
+$('btnShoot').addEventListener('touchstart', e => {
+  e.preventDefault();
+  if (shootTouch !== null) return;
+  const t = e.changedTouches[0];
+  if (!t) return;
+  shootTouch = t.identifier;
+  beginCharge();
+}, { passive: false });
 $('btnShoot').addEventListener('pointerdown', e => {
+  if (e.pointerType === 'touch' && HAS_TOUCH_EVENTS) return;
   e.preventDefault();
   if (shootPointer !== null) return;
   shootPointer = e.pointerId;
@@ -1110,6 +1164,15 @@ function endShoot(e) {
 window.addEventListener('pointerup', endShoot);
 window.addEventListener('pointercancel', e => {
   if (e.pointerId === shootPointer) { shootPointer = null; cancelCharge(); }
+});
+function endShootTouch(e) {
+  if (shootTouch === null || !touchById(e.changedTouches, shootTouch)) return;
+  shootTouch = null;
+  releaseCharge();
+}
+window.addEventListener('touchend', endShootTouch);
+window.addEventListener('touchcancel', e => {
+  if (shootTouch !== null && touchById(e.changedTouches, shootTouch)) { shootTouch = null; cancelCharge(); }
 });
 bindTap('btnDunk', () => shoot(true, 1, 'dunk'));
 bindTap('btnPass', passBall);
