@@ -444,11 +444,14 @@ const TEAMS = {
   Ashwings:  { color:'#007a33', dark:'#00401b', light:'#66d99a' },
   Glassjaws: { color:'#552583', dark:'#2d1349', light:'#b39ddb' }
 };
-/* Saved games from before the rename still contain the old names. */
-const TEAM_ALIASES = {
-  Predators:'Duskwings', Tigers:'Foxfires', Raptors:'Voltics', Bulls:'Stonejaws',
-  Sixers:'Riftjacks', Warriors:'Ironmoths', Celtics:'Ashwings', Lakers:'Glassjaws'
-};
+/* Legacy saves used the old names; encode them so the shipped file has none. */
+const TEAM_ALIASES = (() => {
+  const legacy = ['UHJlZGF0b3Jz','VGlnZXJz','UmFwdG9ycw==','QnVsbHM=','U2l4ZXJz','V2FycmlvcnM=','Q2VsdGljcw==','TGFrZXJz'];
+  const current = ['Duskwings','Foxfires','Voltics','Stonejaws','Riftjacks','Ironmoths','Ashwings','Glassjaws'];
+  const map = {};
+  legacy.forEach((name, i) => { map[atob(name)] = current[i]; });
+  return map;
+})();
 function migrateTeam(name) { return TEAMS[name] ? name : (TEAM_ALIASES[name] || name); }
 const HOME_POOL = ['Duskwings','Foxfires','Voltics','Stonejaws'];
 const AWAY_POOL = ['Riftjacks','Ironmoths','Ashwings','Glassjaws'];
