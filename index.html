@@ -435,25 +435,31 @@ const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 /* ------------------------------------------------------------------ teams */
 const TEAMS = {
-  Predators: { color:'#f47721', dark:'#8f3c12', light:'#ffc17b' },
-  Tigers:    { color:'#efb52c', dark:'#8a5f00', light:'#ffe089' },
-  Raptors:   { color:'#d7263d', dark:'#7a0f1c', light:'#ff8b9a' },
-  Bulls:     { color:'#ce1141', dark:'#6e0922', light:'#ff7a9c' },
-  Sixers:    { color:'#2879e8', dark:'#123c81', light:'#8ac4ff' },
-  Warriors:  { color:'#1d428a', dark:'#0d2148', light:'#7fa3dd' },
-  Celtics:   { color:'#007a33', dark:'#00401b', light:'#66d99a' },
-  Lakers:    { color:'#552583', dark:'#2d1349', light:'#b39ddb' }
+  Duskwings: { color:'#f47721', dark:'#8f3c12', light:'#ffc17b' },
+  Foxfires:  { color:'#efb52c', dark:'#8a5f00', light:'#ffe089' },
+  Voltics:   { color:'#d7263d', dark:'#7a0f1c', light:'#ff8b9a' },
+  Stonejaws: { color:'#ce1141', dark:'#6e0922', light:'#ff7a9c' },
+  Riftjacks: { color:'#2879e8', dark:'#123c81', light:'#8ac4ff' },
+  Ironmoths: { color:'#1d428a', dark:'#0d2148', light:'#7fa3dd' },
+  Ashwings:  { color:'#007a33', dark:'#00401b', light:'#66d99a' },
+  Glassjaws: { color:'#552583', dark:'#2d1349', light:'#b39ddb' }
 };
-const HOME_POOL = ['Predators','Tigers','Raptors','Bulls'];
-const AWAY_POOL = ['Sixers','Warriors','Celtics','Lakers'];
+/* Saved games from before the rename still contain the old names. */
+const TEAM_ALIASES = {
+  Predators:'Duskwings', Tigers:'Foxfires', Raptors:'Voltics', Bulls:'Stonejaws',
+  Sixers:'Riftjacks', Warriors:'Ironmoths', Celtics:'Ashwings', Lakers:'Glassjaws'
+};
+function migrateTeam(name) { return TEAMS[name] ? name : (TEAM_ALIASES[name] || name); }
+const HOME_POOL = ['Duskwings','Foxfires','Voltics','Stonejaws'];
+const AWAY_POOL = ['Riftjacks','Ironmoths','Ashwings','Glassjaws'];
 const DIFF = {
   rookie:  { label:'ROOKIE',   aiSpeed:0.82, aiShot:0.60, steal:0.30 },
   pro:     { label:'PRO',      aiSpeed:1.00, aiShot:1.00, steal:0.40 },
   allstar: { label:'ALL-STAR', aiSpeed:1.14, aiShot:1.30, steal:0.48 }
 };
 const RATINGS = {
-  Predators:84, Tigers:80, Raptors:82, Bulls:81,
-  Sixers:83, Warriors:85, Celtics:84, Lakers:79
+  Duskwings:84, Foxfires:80, Voltics:82, Stonejaws:81,
+  Riftjacks:83, Ironmoths:85, Ashwings:84, Glassjaws:79
 };
 
 const QUARTER_LEN = 90;      // seconds per quarter
@@ -473,7 +479,7 @@ const S = {
   clock:QUARTER_LEN, shotClock:SHOT_CLOCK, quarter:1,
   homeScore:0, awayScore:0,
   possession:0, controlled:0,
-  homeTeam:'Predators', awayTeam:'Sixers', diff:'pro', mode:'friendly',
+  homeTeam:'Duskwings', awayTeam:'Riftjacks', diff:'pro', mode:'friendly',
   charging:false, chargeStart:0, charge:0,
   last:0, toastTimer:0, resetToken:0, breaking:false,
   flash:0, flashColor:'#fff', shake:0
@@ -1739,12 +1745,22 @@ function saveT() {
     localStorage.setItem(TOUR_KEY, JSON.stringify(copy));
   } catch (e) {}
 }
+function migrateTournament(t) {
+  t.userTeam = migrateTeam(t.userTeam);
+  if (t.pools) Object.keys(t.pools).forEach(k => { t.pools[k] = t.pools[k].map(migrateTeam); });
+  if (Array.isArray(t.matches)) t.matches.forEach(m => {
+    m.home = migrateTeam(m.home); m.away = migrateTeam(m.away); m.winner = migrateTeam(m.winner);
+  });
+  if (t.series) { t.series.home = migrateTeam(t.series.home); t.series.away = migrateTeam(t.series.away); }
+  if (Array.isArray(t.placements)) t.placements = t.placements.map(migrateTeam);
+  return t;
+}
 function loadT() {
   try {
     const raw = localStorage.getItem(TOUR_KEY);
     if (!raw) return;
     const t = JSON.parse(raw);
-    if (t && t.version === 1 && Array.isArray(t.matches) && t.pools && t.userTeam) T = t;
+    if (t && t.version === 1 && Array.isArray(t.matches) && t.pools && t.userTeam) T = migrateTournament(t);
   } catch (e) { T = null; }
 }
 
@@ -1755,11 +1771,11 @@ function savePrefs() {
     const p = {
       diff: DIFF[S.diff] ? S.diff : 'pro',
       homeTeam: S.mode === 'tour'
-        ? (TEAMS[prev.homeTeam] ? prev.homeTeam : 'Predators')
-        : (TEAMS[S.homeTeam] ? S.homeTeam : 'Predators'),
+        ? (TEAMS[migrateTeam(prev.homeTeam)] ? migrateTeam(prev.homeTeam) : 'Duskwings')
+        : (TEAMS[S.homeTeam] ? S.homeTeam : 'Duskwings'),
       awayTeam: S.mode === 'tour'
-        ? (TEAMS[prev.awayTeam] ? prev.awayTeam : 'Sixers')
-        : (TEAMS[S.awayTeam] ? S.awayTeam : 'Sixers')
+        ? (TEAMS[migrateTeam(prev.awayTeam)] ? migrateTeam(prev.awayTeam) : 'Riftjacks')
+        : (TEAMS[S.awayTeam] ? S.awayTeam : 'Riftjacks')
     };
     localStorage.setItem(PREF_KEY, JSON.stringify(p));
   } catch (e) {}
@@ -1768,8 +1784,8 @@ function loadPrefs() {
   try {
     const p = JSON.parse(localStorage.getItem(PREF_KEY) || 'null');
     if (!p) return;
-    if (TEAMS[p.homeTeam]) S.homeTeam = p.homeTeam;
-    if (TEAMS[p.awayTeam]) S.awayTeam = p.awayTeam;
+    if (TEAMS[migrateTeam(p.homeTeam)]) S.homeTeam = migrateTeam(p.homeTeam);
+    if (TEAMS[migrateTeam(p.awayTeam)]) S.awayTeam = migrateTeam(p.awayTeam);
     if (DIFF[p.diff]) S.diff = p.diff;
   } catch (e) {}
 }
@@ -2135,15 +2151,15 @@ function updateModeNote() {
 function fillTourSelect() {
   const sel = $('tourTeamSelect');
   Object.keys(TEAMS).forEach(n => sel.add(new Option(n, n)));
-  sel.value = 'Predators';
+  sel.value = 'Duskwings';
   sel.onchange = updateColors;
 }
 
 function fillSelects() {
   const h = $('homeSelect'), a = $('awaySelect');
   Object.keys(TEAMS).forEach(n => { h.add(new Option(n, n)); a.add(new Option(n, n)); });
-  h.value = TEAMS[S.homeTeam] ? S.homeTeam : 'Predators';
-  a.value = TEAMS[S.awayTeam] && S.awayTeam !== h.value ? S.awayTeam : 'Sixers';
+  h.value = TEAMS[S.homeTeam] ? S.homeTeam : 'Duskwings';
+  a.value = TEAMS[S.awayTeam] && S.awayTeam !== h.value ? S.awayTeam : 'Riftjacks';
   if (a.value === h.value) a.value = Object.keys(TEAMS).find(n => n !== h.value);
   h.onchange = a.onchange = () => { updateColors(); savePrefs(); };
 }
