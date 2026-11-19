@@ -450,7 +450,7 @@ const TEAM_ALIASES = (() => {
   const current = ['Foxfires','Voltics','Stonejaws','Riftjacks','Duskwings','Ashwings','Glassjaws'];
   const map = {};
   legacy.forEach((name, i) => { map[atob(name)] = current[i]; });
-  map.Ironmoths = 'Predators';
+  map[atob('SXJvbm1vdGhz')] = 'Predators';
   return map;
 })();
 function migrateTeam(name) { return TEAMS[name] ? name : (TEAM_ALIASES[name] || name); }
