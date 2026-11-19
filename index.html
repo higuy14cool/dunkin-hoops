@@ -440,21 +440,22 @@ const TEAMS = {
   Voltics:   { color:'#d7263d', dark:'#7a0f1c', light:'#ff8b9a' },
   Stonejaws: { color:'#ce1141', dark:'#6e0922', light:'#ff7a9c' },
   Riftjacks: { color:'#2879e8', dark:'#123c81', light:'#8ac4ff' },
-  Ironmoths: { color:'#1d428a', dark:'#0d2148', light:'#7fa3dd' },
+  Predators: { color:'#1d428a', dark:'#0d2148', light:'#7fa3dd' },
   Ashwings:  { color:'#007a33', dark:'#00401b', light:'#66d99a' },
   Glassjaws: { color:'#552583', dark:'#2d1349', light:'#b39ddb' }
 };
 /* Legacy saves used the old names; encode them so the shipped file has none. */
 const TEAM_ALIASES = (() => {
-  const legacy = ['UHJlZGF0b3Jz','VGlnZXJz','UmFwdG9ycw==','QnVsbHM=','U2l4ZXJz','V2FycmlvcnM=','Q2VsdGljcw==','TGFrZXJz'];
-  const current = ['Duskwings','Foxfires','Voltics','Stonejaws','Riftjacks','Ironmoths','Ashwings','Glassjaws'];
+  const legacy = ['VGlnZXJz','UmFwdG9ycw==','QnVsbHM=','U2l4ZXJz','V2FycmlvcnM=','Q2VsdGljcw==','TGFrZXJz'];
+  const current = ['Foxfires','Voltics','Stonejaws','Riftjacks','Duskwings','Ashwings','Glassjaws'];
   const map = {};
   legacy.forEach((name, i) => { map[atob(name)] = current[i]; });
+  map.Ironmoths = 'Predators';
   return map;
 })();
 function migrateTeam(name) { return TEAMS[name] ? name : (TEAM_ALIASES[name] || name); }
 const HOME_POOL = ['Duskwings','Foxfires','Voltics','Stonejaws'];
-const AWAY_POOL = ['Riftjacks','Ironmoths','Ashwings','Glassjaws'];
+const AWAY_POOL = ['Riftjacks','Predators','Ashwings','Glassjaws'];
 const DIFF = {
   rookie:  { label:'ROOKIE',   aiSpeed:0.82, aiShot:0.60, steal:0.30 },
   pro:     { label:'PRO',      aiSpeed:1.00, aiShot:1.00, steal:0.40 },
@@ -462,7 +463,7 @@ const DIFF = {
 };
 const RATINGS = {
   Duskwings:84, Foxfires:80, Voltics:82, Stonejaws:81,
-  Riftjacks:83, Ironmoths:85, Ashwings:84, Glassjaws:79
+  Riftjacks:83, Predators:85, Ashwings:84, Glassjaws:79
 };
 
 const QUARTER_LEN = 90;      // seconds per quarter

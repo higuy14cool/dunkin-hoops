@@ -1,4 +1,4 @@
-const CACHE = 'dunkin-hoops-v12';
+const CACHE = 'dunkin-hoops-v13';
 const SHELL = [
   './',
   './Dunkin%27%20Hoops.html',
