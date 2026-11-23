@@ -408,6 +408,16 @@ canvas#court{position:absolute;inset:0;width:100%;height:100%;display:block}
     </div>
   </div>
 
+  <div class="modal" id="forfeitMenu">
+    <div class="panel">
+      <div class="sub">TOURNAMENT GAME</div>
+      <h2>FORFEIT THIS GAME?</h2>
+      <p>Your opponent will be awarded a 20–0 win, the standard basketball forfeit score. This result cannot be undone.</p>
+      <button class="big" id="btnForfeitNo">KEEP PLAYING</button>
+      <button class="ghost" id="btnForfeitYes">YES, FORFEIT</button>
+    </div>
+  </div>
+
   <div class="modal" id="finalMenu">
     <div class="panel">
       <div class="sub" id="finalSub">FINAL BUZZER</div>
@@ -486,7 +496,7 @@ const S = {
   homeTeam:'Duskwings', awayTeam:'Riftjacks', diff:'pro', mode:'friendly',
   charging:false, chargeStart:0, charge:0,
   last:0, toastTimer:0, resetToken:0, breaking:false,
-  flash:0, flashColor:'#fff', shake:0
+  flash:0, flashColor:'#fff', shake:0, forfeit:false
 };
 const freshStats = () => ({ pts:0, fgm:0, fga:0, tpm:0, tpa:0, dunks:0, steal:0, block:0, reb:0, tov:0 });
 let stats = [freshStats(), freshStats()];
@@ -742,7 +752,8 @@ function startGame() {
   S.homeScore = 0; S.awayScore = 0;
   S.quarter = 1; S.clock = QUARTER_LEN; S.shotClock = SHOT_CLOCK;
   S.playing = true; S.paused = false; S.over = false; S.breaking = false;
-  S.charging = false; S.charge = 0;
+  S.charging = false; S.charge = 0; S.forfeit = false;
+  setTimeout(() => $('endBtn').setAttribute('aria-label', S.mode === 'tour' ? 'Forfeit tournament game' : 'End game'), 0);
   stats = [freshStats(), freshStats()];
   S.resetToken++;
   updateColors();
@@ -755,7 +766,7 @@ function startGame() {
 }
 function quitToHome() {
   S.playing = false; S.over = true; S.paused = false; S.breaking = false;
-  S.charging = false; S.charge = 0;
+  S.charging = false; S.charge = 0; S.forfeit = false;
   if (S.mode === 'tour' && T) { T.active = null; saveT(); }
   S.mode = 'friendly';
   hideMeter();
@@ -766,6 +777,29 @@ function quitToHome() {
   updateModeNote();
   say('');
   syncUI();
+}
+let forfeitReturnToPause = false;
+function requestEndGame(fromPause) {
+  forfeitReturnToPause = !!fromPause;
+  if (S.mode === 'tour' && T && T.active && !T.active.recorded && !S.over) {
+    S.paused = true;
+    cancelCharge();
+    crowd(false);
+    showMenu('forfeitMenu');
+    return;
+  }
+  quitToHome();
+}
+function forfeitGame() {
+  if (!(S.mode === 'tour' && T && T.active && !T.active.recorded)) { quitToHome(); return; }
+  const m = activeMatch();
+  if (!m) { quitToHome(); return; }
+  // The player's team is always the home side on court, whichever side of the bracket it is on.
+  S.homeScore = 0;
+  S.awayScore = 20;
+  S.forfeit = true;
+  stats = [freshStats(), freshStats()];
+  finishGame();
 }
 function finishGame() {
   if (!S.playing) return;
@@ -780,6 +814,7 @@ function finishGame() {
     const m = activeMatch();
     let sub = 'TOURNAMENT · ' + (m ? stageLabel(m) : 'MATCH');
     if (m && m.stage === 'final' && T.series) sub += ' · SERIES ' + T.series.winsHome + '–' + T.series.winsAway;
+    if (S.forfeit) sub += ' · FORFEIT';
     $('finalSub').textContent = sub;
     const seriesDone = T.series && T.series.done;
     $('btnRematch').textContent = seriesDone ? '🏆 FINAL STANDINGS' : 'CONTINUE TOURNAMENT →';
@@ -1190,7 +1225,7 @@ bindTap('btnSteal', attemptSteal);
 bindTap('btnBlock', attemptBlock);
 bindTap('btnSwitch', switchPlayer);
 bindTap('pauseBtn', togglePause);
-bindTap('endBtn', quitToHome);
+bindTap('endBtn', () => requestEndGame(false));
 
 /* ------------------------------------------------------------------- update */
 function moveToward(p, tx, ty, speed, dt, stop) {
@@ -1721,6 +1756,7 @@ function togglePause() {
   if (S.paused) {
     cancelCharge();
     crowd(false);
+    $('btnQuit').textContent = (S.mode === 'tour' && T && T.active && !T.active.recorded) ? 'FORFEIT GAME' : 'END GAME';
     showMenu('pauseMenu');
   } else {
     closeMenus();
@@ -2223,7 +2259,13 @@ $('btnTourPlay').onclick = advanceTournament;
 $('btnTourNew').onclick = () => { sfx('ui'); resetTournament(); };
 $('btnTourHome').onclick = () => { sfx('ui'); quitToHome(); };
 $('btnResume').onclick = togglePause;
-$('btnQuit').onclick = quitToHome;
+$('btnQuit').onclick = () => { sfx('ui'); requestEndGame(true); };
+$('btnForfeitNo').onclick = () => {
+  sfx('ui');
+  if (forfeitReturnToPause) showMenu('pauseMenu');
+  else { S.paused = false; closeMenus(); crowd(true); }
+};
+$('btnForfeitYes').onclick = () => { ac(); sfx('ui'); forfeitGame(); };
 $('btnRematch').onclick = () => {
   ac(); sfx('ui');
   if (S.mode === 'tour') continueTournament();
@@ -2277,9 +2319,9 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
 if (location.search.includes('debug')) {
   window.__dh = {
     S, stats: () => stats, players, ball, endQuarter, startGame, resetPositions, giveBall,
-    cheers: () => cheerCount, finishGame, tournament: () => T, createTournament,
+    cheers: () => cheerCount, finishGame, forfeitGame, tournament: () => T, createTournament,
     openTournamentHub, openTournamentSetup, advanceTournament, continueTournament,
-    simulateToEnd, ensureStages
+    startTournamentMatch, activeMatch, simulateToEnd, ensureStages
   };
 }
 loadPrefs();
